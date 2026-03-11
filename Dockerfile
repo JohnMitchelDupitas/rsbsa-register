@@ -2,7 +2,7 @@ FROM php:8.2-cli
 
 WORKDIR /app
 
-# Install PHP extensions and system dependencies
+# 1. Install PHP extensions and system dependencies
 RUN apt-get update && apt-get install -y \
     git \
     unzip \
@@ -13,23 +13,25 @@ RUN apt-get update && apt-get install -y \
     nodejs npm \
     && docker-php-ext-install pdo pdo_pgsql zip
 
-# Install Composer
+# 2. Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Copy project files
+# 3. Prevent Composer from running out of memory on Render
+ENV COMPOSER_MEMORY_LIMIT=-1
+
+# 4. Copy ONLY composer files first (Crucial for Docker caching)
+COPY composer.json composer.lock ./
+
+# 5. Install dependencies BEFORE copying the rest of the code
+RUN composer install --no-dev --optimize-autoloader --no-scripts
+
+# 6. Now copy the rest of your Laravel project files
 COPY . .
 
-# Install Laravel dependencies
-RUN composer install --no-dev --optimize-autoloader
-
-# Generate app key
-RUN php artisan key:generate
-
-# Install frontend dependencies and build assets
+# 7. Install frontend dependencies and build assets
 RUN npm install
 RUN npm run build
 
-# Expose port
 EXPOSE 10000
 
 # Startup: wait a few seconds, run migrations, then serve
